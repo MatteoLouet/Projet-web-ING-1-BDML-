@@ -1,6 +1,85 @@
 import { useState, useEffect } from "react";
 import './MonApp.css';
 
+// --- Types ---
+
+interface StudyTask {
+  id: string;
+  title: string;
+  description?: string;
+  estimatedHours: number;
+  difficulty: "easy" | "medium" | "hard";
+  type: "theoretical" | "practical";
+}
+
+interface StudyWeek {
+  weekNumber: number;
+  theme: string;
+  objectives: string[];
+  tasks: StudyTask[];
+}
+
+interface Milestone {
+  week: number;
+  title: string;
+  description?: string;
+}
+
+interface StudyPlan {
+  overview: {
+    totalWeeks: number;
+    totalHours: number;
+    approach: string;
+  };
+  weeks: StudyWeek[];
+  milestones: Milestone[];
+  tips: string[];
+}
+
+interface Goal {
+  id: string;
+  title: string;
+  deadline?: string | null;
+  duration?: string | null;
+  durationType?: string;
+  hoursPerWeek: number;
+  level: "beginner" | "intermediate" | "advanced";
+  learningType: "theoretical" | "practical" | "mixed";
+  constraints?: string;
+  plan?: StudyPlan;
+  planGeneratedAt?: string;
+  createdAt?: string;
+  status?: string;
+  progress?: number;
+}
+
+interface CalendarEvent {
+  id: string;
+  title: string;
+  day: string;
+  startTime: string;
+  endTime?: string;
+  type: string;
+  color: string;
+}
+
+interface Settings {
+  startHour: number;
+  endHour: number;
+  slotMinutes: 30 | 60;
+}
+
+declare global {
+  interface Window {
+    storage: {
+      get: (key: string) => Promise<{ value: string } | null>;
+      set: (key: string, value: string) => Promise<void>;
+    };
+  }
+}
+
+// --- Constants ---
+
 const EVENT_COLORS = [
   "#FF6B6B", "#00C9A7", "#45B7D1",
   "#FFA07A", "#98D8C8", "#F7DC6F", "#BB8FCE",
@@ -9,11 +88,13 @@ const EVENT_COLORS = [
 const DAYS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 const DAYS_FULL = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
 
+// --- Main Component ---
+
 export default function AIStudyPlanner() {
-  const [view, setView] = useState("schedule");
-  const [events, setEvents] = useState([]);
-  const [goals, setGoals] = useState([]);
-  const [settings, setSettings] = useState({ startHour: 7, endHour: 22, slotMinutes: 60 });
+  const [view, setView] = useState<"schedule" | "goals">("schedule");
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [settings, setSettings] = useState<Settings>({ startHour: 7, endHour: 22, slotMinutes: 60 });
   const [saveStatus, setSaveStatus] = useState("");
   const [showSettings, setShowSettings] = useState(false);
 
@@ -33,7 +114,7 @@ export default function AIStudyPlanner() {
     } catch { }
   };
 
-  const saveData = async (key, data) => {
+  const saveData = async (key: string, data: any) => {
     try {
       await window.storage.set(`sp-${key}`, JSON.stringify(data));
       setSaveStatus("Sauvegardé ✓");
@@ -42,7 +123,7 @@ export default function AIStudyPlanner() {
   };
 
   const generateSlots = () => {
-    const slots = [];
+    const slots: string[] = [];
     const step = settings.slotMinutes || 60;
     for (let h = settings.startHour; h < settings.endHour; h++) {
       slots.push(`${String(h).padStart(2, "0")}:00`);
@@ -104,12 +185,20 @@ export default function AIStudyPlanner() {
   );
 }
 
-function ScheduleView({ events, setEvents, timeSlots }) {
+// --- Schedule View ---
+
+interface ScheduleViewProps {
+  events: CalendarEvent[];
+  setEvents: (events: CalendarEvent[]) => void;
+  timeSlots: string[];
+}
+
+function ScheduleView({ events, setEvents, timeSlots }: ScheduleViewProps) {
   const [showForm, setShowForm] = useState(false);
-  const defaultForm = { title: "", day: "Lundi", startTime: "09:00", endTime: "10:00", type: "course", color: "#FF6B6B" };
+  const defaultForm: Partial<CalendarEvent> = { title: "", day: "Lundi", startTime: "09:00", endTime: "10:00", type: "course", color: "#FF6B6B" };
   const [form, setForm] = useState(defaultForm);
 
-  const openAdd = (day = "Lundi", startTime = "09:00") => {
+  const openAdd = (day: string = "Lundi", startTime: string = "09:00") => {
     const [h, m] = startTime.split(":").map(Number);
     const endH = Math.min(h + 1, 23);
     const endTime = `${String(endH).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
@@ -120,29 +209,29 @@ function ScheduleView({ events, setEvents, timeSlots }) {
   const close = () => setShowForm(false);
 
   const save = () => {
-    if (!form.title.trim()) return;
-    if (form.startTime >= form.endTime) {
+    if (!form.title?.trim()) return;
+    if (form.startTime! >= form.endTime!) {
       alert("L'heure de fin doit être après l'heure de début.");
       return;
     }
     setEvents([...events, {
       id: `e${Date.now()}`,
       title: form.title,
-      day: form.day,
-      startTime: form.startTime,
-      endTime: form.endTime,
-      type: form.type,
-      color: form.color,
+      day: form.day!,
+      startTime: form.startTime!,
+      endTime: form.endTime!,
+      type: form.type!,
+      color: form.color!,
     }]);
     close();
   };
 
-  const removeEvent = (id, e) => {
+  const removeEvent = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setEvents(events.filter(ev => ev.id !== id));
   };
 
-  const getEventsInSlot = (day, slotTime, nextSlotTime) =>
+  const getEventsInSlot = (day: string, slotTime: string, nextSlotTime: string | null) =>
     events.filter(ev => {
       if (ev.day !== day) return false;
       if (ev.startTime < slotTime) return false;
@@ -301,13 +390,23 @@ function ScheduleView({ events, setEvents, timeSlots }) {
   );
 }
 
-function GoalsView({ goals, setGoals, events, setEvents, setView }) {
-  const [showForm, setShowForm] = useState(false);
-  const [edit, setEdit] = useState(null);
-  const [generating, setGenerating] = useState(null);
-  const [viewPlan, setViewPlan] = useState(null);
+// --- Goals View ---
 
-  const addPlanToCalendar = (plan, weekNumber) => {
+interface GoalsViewProps {
+  goals: Goal[];
+  setGoals: (goals: Goal[]) => void;
+  events: CalendarEvent[];
+  setEvents: (events: CalendarEvent[]) => void;
+  setView: (view: "schedule" | "goals") => void;
+}
+
+function GoalsView({ goals, setGoals, events, setEvents, setView }: GoalsViewProps) {
+  const [showForm, setShowForm] = useState(false);
+  const [edit, setEdit] = useState<Goal | null>(null);
+  const [generating, setGenerating] = useState<string | null>(null);
+  const [viewPlan, setViewPlan] = useState<Goal | null>(null);
+
+  const addPlanToCalendar = (plan: StudyPlan, weekNumber: number) => {
     const week = plan.weeks?.find(w => w.weekNumber === weekNumber);
     if (!week || !week.tasks?.length) {
       alert("Aucune tâche à ajouter pour cette semaine.");
@@ -315,12 +414,12 @@ function GoalsView({ goals, setGoals, events, setEvents, setView }) {
     }
 
     const days = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"];
-    const newEvents = [];
+    const newEvents: CalendarEvent[] = [];
     let dayIndex = 0;
     let hour = 9;
     let minute = 0;
 
-    const isSlotFree = (day, time) =>
+    const isSlotFree = (day: string, time: string) =>
       !events.some(e => e.day === day && e.startTime === time) &&
       !newEvents.some(e => e.day === day && e.startTime === time);
 
@@ -364,7 +463,7 @@ function GoalsView({ goals, setGoals, events, setEvents, setView }) {
     setViewPlan(null);
   };
 
-  const handleGenerate = async (g) => {
+  const handleGenerate = async (g: Goal) => {
     setGenerating(g.id);
     try {
       const response = await fetch("/api/generate-plan", {
@@ -379,19 +478,19 @@ function GoalsView({ goals, setGoals, events, setEvents, setView }) {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Erreur lors de la génération du plan");
       setGoals(goals.map(x => x.id === g.id ? { ...x, plan: data.plan, planGeneratedAt: new Date().toISOString() } : x));
-    } catch (e) {
+    } catch (e: any) {
       alert(`Erreur de génération: ${e.message}`);
     } finally {
       setGenerating(null);
     }
   };
 
-  const deleteGoal = (id) => {
+  const deleteGoal = (id: string) => {
     if (confirm("Supprimer cet objectif ?")) setGoals(goals.filter(x => x.id !== id));
   };
 
-  const levelLabel = { beginner: "Débutant", intermediate: "Intermédiaire", advanced: "Avancé" };
-  const typeLabel = { theoretical: "Théorique", practical: "Pratique", mixed: "Mixte" };
+  const levelLabel: Record<string, string> = { beginner: "Débutant", intermediate: "Intermédiaire", advanced: "Avancé" };
+  const typeLabel: Record<string, string> = { theoretical: "Théorique", practical: "Pratique", mixed: "Mixte" };
 
   return (
     <div className="goals-view">
@@ -434,8 +533,8 @@ function GoalsView({ goals, setGoals, events, setEvents, setView }) {
                   { text: `${g.hoursPerWeek}h/sem` },
                   g.deadline && { text: new Date(g.deadline).toLocaleDateString("fr-FR") },
                   g.duration && { text: g.duration },
-                ].filter(Boolean).map(({ text }, i) => (
-                  <span key={i} className="goal-tag">{text}</span>
+                ].filter(Boolean).map((item, i) => (
+                  <span key={i} className="goal-tag">{(item as any).text}</span>
                 ))}
               </div>
 
@@ -481,9 +580,18 @@ function GoalsView({ goals, setGoals, events, setEvents, setView }) {
   );
 }
 
-function GoalForm({ initialData, onClose, onSave }) {
+// --- Goal Form ---
+
+interface GoalFormProps {
+  initialData: Goal | null;
+  onClose: () => void;
+  onSave: (goal: Goal) => void;
+}
+
+function GoalForm({ initialData, onClose, onSave }: GoalFormProps) {
   const [step, setStep] = useState(1);
-  const [d, setD] = useState(initialData || {
+  const [d, setD] = useState<Goal>(initialData || {
+    id: "",
     title: "", deadline: "", duration: "", durationType: "weeks",
     hoursPerWeek: 5, level: "beginner", learningType: "mixed", constraints: "",
   });
@@ -532,13 +640,13 @@ function GoalForm({ initialData, onClose, onSave }) {
             <div className="form-row-2">
               <div>
                 <label className="form-label">Date limite</label>
-                <input type="date" className="form-input" value={d.deadline}
+                <input type="date" className="form-input" value={d.deadline || ""}
                   onChange={(e) => setD({ ...d, deadline: e.target.value })} />
               </div>
               <div>
                 <label className="form-label">Durée</label>
                 <div className="form-inline">
-                  <input type="number" className="form-input form-input--flex" value={d.duration}
+                  <input type="number" className="form-input form-input--flex" value={d.duration || ""}
                     onChange={(e) => setD({ ...d, duration: e.target.value })} placeholder="12" />
                   <select className="form-input form-input--flex-sm" value={d.durationType}
                     onChange={(e) => setD({ ...d, durationType: e.target.value })}>
@@ -566,7 +674,7 @@ function GoalForm({ initialData, onClose, onSave }) {
               <label className="form-label">Niveau actuel</label>
               {["beginner", "intermediate", "advanced"].map((l) => (
                 <div key={l} className={`radio-option${d.level === l ? " active" : ""}`}
-                  onClick={() => setD({ ...d, level: l })}>
+                  onClick={() => setD({ ...d, level: l as any })}>
                   <div className={`radio-dot${d.level === l ? " active" : ""}`} />
                   <div>
                     <div className="radio-label">
@@ -588,7 +696,7 @@ function GoalForm({ initialData, onClose, onSave }) {
               <label className="form-label">Style d'apprentissage</label>
               {["theoretical", "practical", "mixed"].map((t) => (
                 <div key={t} className={`radio-option${d.learningType === t ? " active" : ""}`}
-                  onClick={() => setD({ ...d, learningType: t })}>
+                  onClick={() => setD({ ...d, learningType: t as any })}>
                   <div className={`radio-dot${d.learningType === t ? " active" : ""}`} />
                   <div>
                     <div className="radio-label">
@@ -628,8 +736,16 @@ function GoalForm({ initialData, onClose, onSave }) {
   );
 }
 
-function PlanModal({ goal, onClose, onAddToCalendar }) {
-  const [addedWeeks, setAddedWeeks] = useState([]);
+// --- Plan Modal ---
+
+interface PlanModalProps {
+  goal: Goal;
+  onClose: () => void;
+  onAddToCalendar: (plan: StudyPlan, weekNumber: number) => void;
+}
+
+function PlanModal({ goal, onClose, onAddToCalendar }: PlanModalProps) {
+  const [addedWeeks, setAddedWeeks] = useState<number[]>([]);
   const plan = goal.plan;
   if (!plan) return null;
 
@@ -708,7 +824,15 @@ function PlanModal({ goal, onClose, onAddToCalendar }) {
   );
 }
 
-function SettingsModal({ settings, onSave, onClose }) {
+// --- Settings Modal ---
+
+interface SettingsModalProps {
+  settings: Settings;
+  onSave: (settings: Settings) => void;
+  onClose: () => void;
+}
+
+function SettingsModal({ settings, onSave, onClose }: SettingsModalProps) {
   const [s, setS] = useState(settings);
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -718,7 +842,7 @@ function SettingsModal({ settings, onSave, onClose }) {
         <div className="form-group">
           <label className="form-label">Plage horaire du calendrier</label>
           <div className="settings-grid">
-            {["startHour", "endHour"].map((key) => (
+            {(["startHour", "endHour"] as const).map((key) => (
               <div key={key}>
                 <label className="form-label">{key === "startHour" ? "Début" : "Fin"}</label>
                 <select className="form-input" value={s[key]}
@@ -735,11 +859,11 @@ function SettingsModal({ settings, onSave, onClose }) {
         <div className="form-group form-group--lg">
           <label className="form-label">Granularité des créneaux</label>
           <div className="slot-row">
-            {[{ v: 60, l: "1 heure" }, { v: 30, l: "30 minutes" }].map(({ v, l }) => (
+            {(60 as const === 60 ? [{ v: 60, l: "1 heure" }, { v: 30, l: "30 minutes" }] : []).map(({ v, l }) => (
               <button
                 key={v}
                 className={`slot-btn${(s.slotMinutes || 60) === v ? " active" : ""}`}
-                onClick={() => setS({ ...s, slotMinutes: v })}
+                onClick={() => setS({ ...s, slotMinutes: v as 30 | 60 })}
               >{l}</button>
             ))}
           </div>

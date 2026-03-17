@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 
@@ -10,8 +10,53 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
+// --- Interfaces for Backend ---
+
+interface GeneratePlanRequest {
+    title: string;
+    level: string;
+    hoursPerWeek: number;
+    learningType: string;
+    deadline?: string | null;
+    duration?: string | null;
+    constraints?: string | null;
+}
+
+interface StudyTask {
+    id: string;
+    title: string;
+    description: string;
+    estimatedHours: number;
+    difficulty: string;
+    type: string;
+}
+
+interface StudyWeek {
+    weekNumber: number;
+    theme: string;
+    objectives: string[];
+    tasks: StudyTask[];
+}
+
+interface Milestone {
+    week: number;
+    title: string;
+    description: string;
+}
+
+interface StudyPlan {
+    overview: {
+        totalWeeks: number;
+        totalHours: number;
+        approach: string;
+    };
+    weeks: StudyWeek[];
+    milestones: Milestone[];
+    tips: string[];
+}
+
 // Endpoint pour générer un plan d'apprentissage via l'API Groq (gratuite)
-app.post('/api/generate-plan', async (req, res) => {
+app.post('/api/generate-plan', async (req: Request<{}, {}, GeneratePlanRequest>, res: Response) => {
     const apiKey = process.env.GROQ_API_KEY;
 
     if (!apiKey || apiKey === 'ta-clé-ici') {
@@ -60,7 +105,7 @@ Génère un plan complet et réaliste avec au moins 4 semaines détaillées, des
         });
 
         if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
+            const errorData: any = await response.json().catch(() => ({}));
             console.error('Erreur API Groq:', response.status, errorData);
             const msg = errorData?.error?.message || 'Erreur inconnue';
             return res.status(response.status).json({
@@ -68,15 +113,15 @@ Génère un plan complet et réaliste avec au moins 4 semaines détaillées, des
             });
         }
 
-        const data = await response.json();
+        const data: any = await response.json();
         const textContent = data.choices?.[0]?.message?.content || '';
 
         // Nettoyage et parsing du JSON
         const cleanedText = textContent.trim().replace(/```json\n?/g, '').replace(/```\n?/g, '');
-        const plan = JSON.parse(cleanedText);
+        const plan: StudyPlan = JSON.parse(cleanedText);
 
         res.json({ plan });
-    } catch (error) {
+    } catch (error: any) {
         console.error('Erreur serveur:', error);
         res.status(500).json({
             error: `Erreur de génération: ${error.message}`,

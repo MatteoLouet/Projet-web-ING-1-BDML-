@@ -265,7 +265,7 @@ function ScheduleView({ events, setEvents, timeSlots }: { events: CalendarEvent[
                   {DAYS_FULL.map(day => {
                     const cellKey = `${day}-${slotIdx}`;
 
-                    // Skip this cell — it's covered by a spanning event from above
+                    // On passe cette cellule, elle est déjà occupée par un événement qui s'étend depuis une ligne précédente
                     if (coveredCells.has(cellKey)) return null;
 
                     const slotEvents = events.filter(e => e.day === day && e.startTime === time);

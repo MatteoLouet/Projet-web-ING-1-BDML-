@@ -149,7 +149,7 @@ body {
   border: 2px solid var(--border);
 }
 
-/* White ghost variant used inside coloured header */
+/* Variante blanche utilisée dans l'en-tête coloré */
 .btn-ghost-white {
   background: rgba(255, 255, 255, 0.2);
   color: white;
@@ -297,7 +297,7 @@ body {
   gap: 6px;
 }
 
-/* Type/option button row */
+/* Rangée de boutons pour choisir un type / une option */
 .option-row {
   display: flex;
   gap: 8px;
@@ -321,7 +321,7 @@ body {
   color: var(--mint-dark);
 }
 
-/* Slot toggle (settings) */
+/* Boutons de sélection de créneau (paramètres) */
 .slot-btn {
   flex: 1;
   padding: 10px 12px;
@@ -340,7 +340,7 @@ body {
   color: var(--mint-dark);
 }
 
-/* Color picker swatches */
+/* Palette de sélection de couleur */
 .color-picker {
   display: flex;
   gap: 8px;
@@ -360,7 +360,7 @@ body {
   box-shadow: 0 0 0 2px white inset;
 }
 
-/* Textarea */
+/* Zone de texte multi-lignes */
 .form-textarea {
   width: 100%;
   padding: 12px 14px;
@@ -374,7 +374,7 @@ body {
   min-height: 90px;
 }
 
-/* Range slider */
+/* Curseur de plage (slider) */
 .form-range {
   width: 100%;
   accent-color: var(--mint);
@@ -388,7 +388,7 @@ body {
   margin-top: 4px;
 }
 
-/* Modal action row */
+/* Rangée de boutons en bas de la modale */
 .modal-actions {
   display: flex;
   gap: 10px;
@@ -494,7 +494,7 @@ body {
   border-bottom: 1px solid #F0F4F8;
 }
 
-/* Event badge inside calendar */
+/* Badge d'événement dans le calendrier */
 .event-badge {
   border-radius: 5px;
   padding: 5px 8px;
@@ -571,7 +571,7 @@ body {
   color: var(--muted);
 }
 
-/* Empty state */
+/* État vide (aucun objectif) */
 .empty-state {
   padding: 80px 40px;
   text-align: center;
@@ -594,14 +594,14 @@ body {
   margin-bottom: 28px;
 }
 
-/* Goals grid */
+/* Grille des objectifs */
 .goals-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 16px;
 }
 
-/* Goal card */
+/* Carte d'un objectif */
 .goal-card {
   padding: 24px;
   border: 2px solid var(--border);
@@ -645,7 +645,7 @@ body {
   color: var(--coral);
 }
 
-/* Goal tags row */
+/* Rangée de tags d'un objectif */
 .goal-tags {
   display: flex;
   flex-wrap: wrap;
@@ -663,7 +663,7 @@ body {
   border: 1px solid var(--border);
 }
 
-/* Goal constraints */
+/* Bloc contexte / contraintes */
 .goal-constraints {
   margin: 0 0 14px;
   padding: 10px 12px;
@@ -675,7 +675,7 @@ body {
   background: var(--mint-light);
 }
 
-/* Goal actions */
+/* Boutons d'action d'un objectif */
 .goal-actions {
   display: flex;
   gap: 8px;
@@ -759,7 +759,7 @@ body {
   background: var(--mint);
 }
 
-/* Radio-style option rows */
+/* Options style boutons radio */
 .radio-option {
   display: flex;
   align-items: center;

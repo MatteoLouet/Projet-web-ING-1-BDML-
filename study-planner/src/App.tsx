@@ -392,23 +392,61 @@ function GoalsView({ goals, setGoals, events, setEvents, setView }: any) {
 
   const addWeekToCalendar = (plan: StudyPlan, weekIdx: number) => {
     const week = plan.weeks[weekIdx];
+    const tasks = week.tasks;
     const newEvents: CalendarEvent[] = [];
-    let currentDayIdx = 0; // Lundi
-    let currentHour = 9;
 
-    week.tasks.forEach(task => {
-      // On place les tâches une par une à partir de 9h
-      newEvents.push({
-        id: `e-${Date.now()}-${Math.random()}`,
-        title: task.title,
-        day: DAYS_FULL[currentDayIdx],
-        startTime: `${String(currentHour).padStart(2, "0")}:00`,
-        endTime: `${String(currentHour + 1).padStart(2, "0")}:00`,
-        color: EVENT_COLORS[currentDayIdx],
-        type: "course"
+    // On répartit les tâches équitablement sur 5 jours (Lundi → Vendredi)
+    // Exemple : 7 tâches → 2 par jour sur 2 jours, 1 par jour sur 3 jours
+    const WORK_DAYS = DAYS_FULL.slice(0, 5); // Lundi à Vendredi
+    const tasksPerDay = Math.ceil(tasks.length / WORK_DAYS.length);
+
+    // On regroupe les tâches par jour : chaque « groupe » ira dans un jour de la semaine
+    const groups: StudyTask[][] = [];
+    for (let i = 0; i < tasks.length; i += tasksPerDay) {
+      groups.push(tasks.slice(i, i + tasksPerDay));
+    }
+
+    // On distribue chaque groupe dans un jour, en espaçant les tâches dans la journée
+    groups.forEach((dayTasks, dayIdx) => {
+      if (dayIdx >= WORK_DAYS.length) return;
+      const day = WORK_DAYS[dayIdx];
+      const color = EVENT_COLORS[dayIdx % EVENT_COLORS.length];
+
+      // On commence à 9h dans la journée, avec 30 min de pause entre les tâches
+      let currentMinute = 9 * 60; // 9h00 en minutes
+      const PAUSE_MINUTES = 30;
+      const HEURE_MAX = 19 * 60; // On ne dépasse pas 19h
+
+      dayTasks.forEach(task => {
+        // On calcule la durée de la tâche (1h par défaut si non précisée)
+        const durationHours = task.estimatedHours > 0 ? task.estimatedHours : 1;
+        const durationMinutes = Math.round(durationHours * 60);
+
+        // Si on déborde au-delà de 19h, on s'arrête (on ne crée pas de tâche de nuit)
+        if (currentMinute + durationMinutes > HEURE_MAX) return;
+
+        const startH = Math.floor(currentMinute / 60);
+        const startM = currentMinute % 60;
+        const endMinute = currentMinute + durationMinutes;
+        const endH = Math.floor(endMinute / 60);
+        const endM = endMinute % 60;
+
+        const fmt = (h: number, m: number) =>
+          `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+
+        newEvents.push({
+          id: `e-${Date.now()}-${Math.random()}`,
+          title: task.title,
+          day,
+          startTime: fmt(startH, startM),
+          endTime: fmt(endH, endM),
+          color,
+          type: "course"
+        });
+
+        // On avance le curseur de temps : durée de la tâche + pause
+        currentMinute = endMinute + PAUSE_MINUTES;
       });
-      currentHour++;
-      if (currentHour > 17) { currentHour = 9; currentDayIdx++; }
     });
 
     setEvents([...events, ...newEvents]);

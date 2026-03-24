@@ -1,11 +1,6 @@
 import { useState, useEffect } from "react";
 import './MonApp.css';
 
-/**
- * --- TYPES (TYPESCRIPT) ---
- * Les interfaces définissent la "forme" de nos données.
- * C'est comme un contrat qui dit : "Une tâche doit avoir un id, un titre, etc."
- */
 
 interface StudyTask {
   id: string;
@@ -67,7 +62,10 @@ interface Settings {
   slotMinutes: 30 | 60;
 }
 
-// Extension pour l'objet window (stockage par le navigateur)
+// window.storage est fourni par l'environnement qui héberge l'appli.
+// On lui dit à TypeScript : "fais confiance, cet objet existera au moment de l'exécution".
+// get() et set() sont des fonctions "async" : elles retournent une Promise,
+// ce qui veut dire qu'elles peuvent prendre du temps (ex: accès disque ou réseau).
 declare global {
   interface Window {
     storage: {
@@ -93,7 +91,9 @@ export default function AIStudyPlanner() {
   const [saveStatus, setSaveStatus] = useState("");
   const [showSettings, setShowSettings] = useState(false);
 
-  // useEffect s'exécute à des moments précis (ici au chargement de la page)
+  // useEffect avec [] en 2ème argument = s'exécute UNE SEULE FOIS au chargement de la page.
+  // On utilise "async/await" parce que window.storage.get() est asynchrone.
+  // JSON.parse() convertit la chaîne de caractères stockée en vrai objet JavaScript.
   useEffect(() => {
     const load = async () => {
       try {
@@ -108,7 +108,7 @@ export default function AIStudyPlanner() {
     load();
   }, []);
 
-  // On sauvegarde automatiquement quand les données changent
+  // JSON.stringify() fait l'inverse : convertit un objet en chaîne de caractères pour le stocker.
   const saveData = async (key: string, data: any) => {
     try {
       await window.storage.set(`sp-${key}`, JSON.stringify(data));
@@ -117,6 +117,8 @@ export default function AIStudyPlanner() {
     } catch { }
   };
 
+  // Ces useEffect "regardent" les variables events/goals/settings.
+  // Dès qu'une d'elles change, on resauvegarde automatiquement.
   useEffect(() => { if (events.length > 0) saveData("events", events); }, [events]);
   useEffect(() => { if (goals.length > 0) saveData("goals", goals); }, [goals]);
   useEffect(() => { saveData("settings", settings); }, [settings]);
@@ -178,6 +180,11 @@ export default function AIStudyPlanner() {
 
 /** --- VUE EMPLOI DU TEMPS --- **/
 
+function timeToMinutes(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+}
+
 function ScheduleView({ events, setEvents, timeSlots }: { events: CalendarEvent[], setEvents: any, timeSlots: string[] }) {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<Partial<CalendarEvent>>({
@@ -193,11 +200,48 @@ function ScheduleView({ events, setEvents, timeSlots }: { events: CalendarEvent[
 
   const handleSave = () => {
     if (!form.title) return alert("Donne un titre à ton événement !");
+    if (!form.startTime || !form.endTime) return alert("Indique une heure de début et de fin.");
+    if (timeToMinutes(form.endTime!) <= timeToMinutes(form.startTime!)) {
+      return alert("L'heure de fin doit être après l'heure de début.");
+    }
     setEvents([...events, { ...form, id: `e${Date.now()}` } as CalendarEvent]);
     setShowForm(false);
   };
 
-  const deleteEvent = (id: string) => setEvents(events.filter(e => e.id !== id));
+  const deleteEvent = (id: string) => setEvents(events.filter((e: CalendarEvent) => e.id !== id));
+
+  // Durée d'un créneau en minutes (ici 1 heure = 60 min)
+  const slotMinutes = 60;
+
+  // On précalcule deux choses pour le rendu du tableau :
+  // 1. coveredCells : les cellules qu'on ne doit PAS rendre car elles sont "avalées" par
+  //    un événement qui s'étend sur plusieurs lignes (ex: un cours de 2h occupe 2 cases).
+  // 2. rowSpanMap : pour chaque cellule "de départ", combien de lignes elle doit fusionner.
+  //    C'est l'attribut HTML rowSpan qui permet à une cellule de s'étendre verticalement.
+  const coveredCells = new Set<string>();
+  const rowSpanMap: Record<string, number> = {};
+
+  events.forEach(ev => {
+    // On calcule la durée de l'événement en minutes, puis on en déduit combien de lignes il prend.
+    // Math.ceil arrondit vers le haut : un cours de 1h30 prend 2 lignes de 1h.
+    const startMin = timeToMinutes(ev.startTime);
+    const endMin = timeToMinutes(ev.endTime);
+    const span = Math.max(1, Math.ceil((endMin - startMin) / slotMinutes));
+
+    // On cherche l'index du créneau qui correspond à l'heure de début de l'événement.
+    const startSlotIdx = timeSlots.findIndex(t => t === ev.startTime);
+    if (startSlotIdx === -1) return; // L'heure de début est hors de la plage affichée
+
+    const key = `${ev.day}-${startSlotIdx}`;
+    rowSpanMap[key] = span;
+
+    // On marque toutes les cellules suivantes comme "couvertes" pour ne pas les afficher.
+    for (let i = 1; i < span; i++) {
+      if (startSlotIdx + i < timeSlots.length) {
+        coveredCells.add(`${ev.day}-${startSlotIdx + i}`);
+      }
+    }
+  });
 
   return (
     <>
@@ -215,17 +259,44 @@ function ScheduleView({ events, setEvents, timeSlots }: { events: CalendarEvent[
               </tr>
             </thead>
             <tbody>
-              {timeSlots.map((time, idx) => (
+              {timeSlots.map((time, slotIdx) => (
                 <tr key={time}>
                   <td className="cal-td-time">{time}</td>
                   {DAYS_FULL.map(day => {
+                    const cellKey = `${day}-${slotIdx}`;
+
+                    // Skip this cell — it's covered by a spanning event from above
+                    if (coveredCells.has(cellKey)) return null;
+
                     const slotEvents = events.filter(e => e.day === day && e.startTime === time);
+                    const span = rowSpanMap[cellKey] ?? 1;
+
                     return (
-                      <td key={`${day}-${time}`} className="cal-td-cell" onClick={() => openForm(day, time)}>
+                      <td
+                        key={cellKey}
+                        className="cal-td-cell"
+                        rowSpan={span}
+                        onClick={() => openForm(day, time)}
+                        style={{ verticalAlign: "top", padding: 4 }}
+                      >
                         {slotEvents.map(ev => (
-                          <div key={ev.id} className="event-badge" style={{ backgroundColor: ev.color }} onClick={e => e.stopPropagation()}>
-                            <div className="event-badge-title">{ev.title}</div>
-                            <div className="event-badge-time">{ev.startTime} - {ev.endTime}</div>
+                          <div
+                            key={ev.id}
+                            className="event-badge"
+                            style={{
+                              backgroundColor: ev.color,
+                              height: "100%",
+                              minHeight: 24,
+                              display: "flex",
+                              flexDirection: "column",
+                              justifyContent: "space-between",
+                            }}
+                            onClick={e => e.stopPropagation()}
+                          >
+                            <div>
+                              <div className="event-badge-title">{ev.title}</div>
+                              <div className="event-badge-time">{ev.startTime} – {ev.endTime}</div>
+                            </div>
                             <button className="event-badge-remove" onClick={() => deleteEvent(ev.id)}>×</button>
                           </div>
                         ))}
@@ -247,6 +318,12 @@ function ScheduleView({ events, setEvents, timeSlots }: { events: CalendarEvent[
               <label className="form-label">Titre</label>
               <input className="form-input" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} autoFocus />
             </div>
+            <div className="form-group">
+              <label className="form-label">Jour</label>
+              <select className="form-input" value={form.day} onChange={e => setForm({ ...form, day: e.target.value })}>
+                {DAYS_FULL.map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
+            </div>
             <div className="form-row-2">
               <div>
                 <label className="form-label">Début</label>
@@ -255,6 +332,21 @@ function ScheduleView({ events, setEvents, timeSlots }: { events: CalendarEvent[
               <div>
                 <label className="form-label">Fin</label>
                 <input type="time" className="form-input" value={form.endTime} onChange={e => setForm({ ...form, endTime: e.target.value })} />
+              </div>
+            </div>
+            <div className="form-group" style={{ marginTop: 14 }}>
+              <label className="form-label">Couleur</label>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {EVENT_COLORS.map(c => (
+                  <div
+                    key={c}
+                    onClick={() => setForm({ ...form, color: c })}
+                    style={{
+                      width: 30, height: 30, borderRadius: 6, backgroundColor: c, cursor: "pointer",
+                      border: form.color === c ? "3px solid #1A202C" : "3px solid transparent",
+                    }}
+                  />
+                ))}
               </div>
             </div>
             <div className="modal-actions">
@@ -268,6 +360,7 @@ function ScheduleView({ events, setEvents, timeSlots }: { events: CalendarEvent[
   );
 }
 
+
 /** --- VUE OBJECTIFS --- **/
 
 function GoalsView({ goals, setGoals, events, setEvents, setView }: any) {
@@ -275,18 +368,26 @@ function GoalsView({ goals, setGoals, events, setEvents, setView }: any) {
   const [generating, setGenerating] = useState<string | null>(null);
   const [activePlan, setActivePlan] = useState<Goal | null>(null);
 
+  // Cette fonction est appelée quand on clique sur "Générer plan".
+  // "async" signifie qu'elle fait des opérations qui prennent du temps (appel réseau).
   const generateAIPlan = async (goal: Goal) => {
-    setGenerating(goal.id);
+    setGenerating(goal.id); // On affiche "Génération..." sur le bouton
     try {
+      // fetch() envoie une requête HTTP vers notre serveur backend (port 3001).
+      // On utilise la méthode POST pour envoyer des données (l'objectif de l'utilisateur).
+      // "Content-Type: application/json" indique qu'on envoie du JSON.
+      // JSON.stringify() convertit l'objet goal en texte pour l'envoyer.
       const res = await fetch("/api/generate-plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(goal)
       });
+      // res.json() lit la réponse du serveur et la convertit en objet JavaScript.
       const data = await res.json();
+      // On met à jour uniquement l'objectif concerné en gardant les autres intacts.
       setGoals(goals.map((g: Goal) => g.id === goal.id ? { ...g, plan: data.plan } : g));
-    } catch (err) { alert("Erreur IA"); }
-    setGenerating(null);
+    } catch (err) { alert("Erreur lors de la génération"); }
+    setGenerating(null); // On cache le message "Génération..."
   };
 
   const addWeekToCalendar = (plan: StudyPlan, weekIdx: number) => {
